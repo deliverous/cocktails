@@ -61,11 +61,7 @@ func Test_Chain_ExtendShouldBeImmutable(t *testing.T) {
 }
 
 func ensureRequestContains(t *testing.T, handler http.Handler, expectedTrace string) {
-	recorder, err := processRequest(handler)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := recorder.Body.String()
+	body := processRequest(t, handler).Body.String()
 	if body != expectedTrace {
 		t.Errorf("expected %#v, got %#v", expectedTrace, body)
 	}
