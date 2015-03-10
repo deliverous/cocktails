@@ -1,5 +1,4 @@
 # cocktails
-Golang http library
 
 
 # Credits
