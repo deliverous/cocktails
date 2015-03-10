@@ -12,6 +12,16 @@ var panicHandler = http.HandlerFunc(func(writer http.ResponseWriter, request *ht
 	panic("here is a panic!")
 })
 
+func testRecovery() *Recovery {
+	return testRecoveryLoggingInto(bytes.NewBufferString(""))
+}
+
+func testRecoveryLoggingInto(buffer *bytes.Buffer) *Recovery {
+	recovery := DefaultRecovery()
+	recovery.Logger = log.New(buffer, "", 0)
+	return recovery
+}
+
 func Test_WithoutRecovery_ShouldPanic(t *testing.T) {
 	didPanic := false
 	func() {
@@ -35,18 +45,24 @@ func Test_WithRecovery_ShouldNotPanic(t *testing.T) {
 				didPanic = true
 			}
 		}()
-		processRequest(t, Chain(DefaultRecovery().Recover).Then(panicHandler))
+		processRequest(t, Chain(testRecovery().Recover).Then(panicHandler))
 	}()
 	if didPanic {
 		t.Error("Panic was propagated")
 	}
 }
 
+func Test_WithRecovery_ShouldRespondsInternalServerError(t *testing.T) {
+	recorder := processRequest(t, Chain(testRecovery().Recover).Then(panicHandler))
+	if recorder.Code != http.StatusInternalServerError {
+		t.Error("Recovery failed to returns internal server error")
+	}
+}
+
 func Test_WithRecovery_ShouldPrintTheStackToTheLogger(t *testing.T) {
 	buffer := bytes.NewBufferString("")
-	recovery := DefaultRecovery()
-	recovery.Logger = log.New(buffer, "", 0)
-
+	recovery := testRecoveryLoggingInto(buffer)
+	recovery.PrintStack = false
 	processRequest(t, Chain(recovery.Recover).Then(panicHandler))
 	if !strings.Contains(buffer.String(), "here is a panic!") {
 		t.Error("Stack was not printed into the logger")
@@ -54,8 +70,7 @@ func Test_WithRecovery_ShouldPrintTheStackToTheLogger(t *testing.T) {
 }
 
 func Test_WithRecovery_WithPrintStack_ShouldPrintTheStackToTheResponseBody(t *testing.T) {
-	recovery := DefaultRecovery()
-	recovery.Logger = log.New(bytes.NewBufferString(""), "", 0)
+	recovery := testRecovery()
 	recovery.PrintStack = true
 	recorder := processRequest(t, Chain(recovery.Recover).Then(panicHandler))
 	if !strings.Contains(recorder.Body.String(), "here is a panic!") {
