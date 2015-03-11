@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Gorilla context store values in a big map
+// Gorilla context stores values in a big map
 type GorillaContext struct {
 	mutex sync.RWMutex
 	data  map[*http.Request]map[interface{}]interface{}
@@ -56,7 +56,7 @@ func (context *GorillaContext) GetOk(request *http.Request, key interface{}) (in
 	return nil, false
 }
 
-// GetAll returns all stored values for the request as a map. Nil is returned for invalid requests.
+// GetAll returns all stored values for the request as a map.
 func (context *GorillaContext) GetAll(request *http.Request) map[interface{}]interface{} {
 	context.mutex.RLock()
 	if all, ok := context.data[request]; ok {
