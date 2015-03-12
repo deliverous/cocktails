@@ -17,9 +17,7 @@ func testRecovery() *Recovery {
 }
 
 func testRecoveryLoggingInto(buffer *bytes.Buffer) *Recovery {
-	recovery := DefaultRecovery()
-	recovery.Logger = log.New(buffer, "", 0)
-	return recovery
+	return NewRecovery(Logger(log.New(buffer, "", 0)))
 }
 
 func Test_WithoutRecovery_ShouldPanic(t *testing.T) {
