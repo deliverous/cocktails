@@ -55,7 +55,7 @@ func Test_Chain_Extend_ShouldNotModifyTheReceiver(t *testing.T) {
 func Test_Chain_ExtendShouldBeImmutable(t *testing.T) {
 	first := Chain(taggerMiddleware("[M1]"))
 	full := first.Extend(taggerMiddleware("[M2]"), taggerMiddleware("[M3]"))
-	if repr(&first.builders[0]) == repr(&full.builders[0]) {
+	if repr(&first.middlewares[0]) == repr(&full.middlewares[0]) {
 		t.Errorf("Extand failed to be immutable")
 	}
 }
@@ -73,7 +73,7 @@ func taggerHandler(tag string) http.Handler {
 	})
 }
 
-func taggerMiddleware(tag string) MiddlewareBuilder {
+func taggerMiddleware(tag string) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			writer.Write([]byte(tag))
