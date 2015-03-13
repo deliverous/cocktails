@@ -3,37 +3,33 @@ package httpcontext
 import (
 	"net/http"
 	"sync"
-	"time"
 )
 
-// Gorilla context stores values in a big map
-type GorillaContext struct {
+// BigMap context stores values in a big map
+type BigMapContext struct {
 	mutex sync.RWMutex
 	data  map[*http.Request]map[interface{}]interface{}
-	datat map[*http.Request]int64
 }
 
-// NewGorillaContext creates a new GorillaContext
-func NewGorillaContext() *GorillaContext {
-	return &GorillaContext{
+// NewBigMapContext creates a new BigMapContext
+func NewBigMapContext() *BigMapContext {
+	return &BigMapContext{
 		data:  make(map[*http.Request]map[interface{}]interface{}),
-		datat: make(map[*http.Request]int64),
 	}
 }
 
 // Set stores a value for a given key in a given request.
-func (context *GorillaContext) Set(request *http.Request, key, val interface{}) {
+func (context *BigMapContext) Set(request *http.Request, key, val interface{}) {
 	context.mutex.Lock()
 	if context.data[request] == nil {
 		context.data[request] = make(map[interface{}]interface{})
-		context.datat[request] = time.Now().Unix()
 	}
 	context.data[request][key] = val
 	context.mutex.Unlock()
 }
 
 // Get returns a value stored for a given key in a given request.
-func (context *GorillaContext) Get(request *http.Request, key interface{}) interface{} {
+func (context *BigMapContext) Get(request *http.Request, key interface{}) interface{} {
 	context.mutex.RLock()
 	if ctx := context.data[request]; ctx != nil {
 		value := ctx[key]
@@ -45,7 +41,7 @@ func (context *GorillaContext) Get(request *http.Request, key interface{}) inter
 }
 
 // GetOk returns stored value and presence state like multi-value return of map access.
-func (context *GorillaContext) GetOk(request *http.Request, key interface{}) (interface{}, bool) {
+func (context *BigMapContext) GetOk(request *http.Request, key interface{}) (interface{}, bool) {
 	context.mutex.RLock()
 	if _, ok := context.data[request]; ok {
 		value, ok := context.data[request][key]
@@ -57,7 +53,7 @@ func (context *GorillaContext) GetOk(request *http.Request, key interface{}) (in
 }
 
 // GetAll returns all stored values for the request as a map.
-func (context *GorillaContext) GetAll(request *http.Request) map[interface{}]interface{} {
+func (context *BigMapContext) GetAll(request *http.Request) map[interface{}]interface{} {
 	context.mutex.RLock()
 	if all, ok := context.data[request]; ok {
 		result := make(map[interface{}]interface{}, len(all))
@@ -72,7 +68,7 @@ func (context *GorillaContext) GetAll(request *http.Request) map[interface{}]int
 }
 
 // Delete removes a value stored for a given key in a given request.
-func (context *GorillaContext) Delete(request *http.Request, key interface{}) {
+func (context *BigMapContext) Delete(request *http.Request, key interface{}) {
 	context.mutex.Lock()
 	if context.data[request] != nil {
 		delete(context.data[request], key)
@@ -81,15 +77,14 @@ func (context *GorillaContext) Delete(request *http.Request, key interface{}) {
 }
 
 // Clear removes all values stored for a given request.
-func (context *GorillaContext) Clear(request *http.Request) {
+func (context *BigMapContext) Clear(request *http.Request) {
 	context.mutex.Lock()
 	delete(context.data, request)
-	delete(context.datat, request)
 	context.mutex.Unlock()
 }
 
-// ClearGorillaContext is a middleware to cleanup request context at the end
-func ClearGorillaContext(context *GorillaContext) func(http.Handler) http.Handler {
+// ClearBigMapContext is a middleware to cleanup request context at the end
+func ClearBigMapContext(context *BigMapContext) func(http.Handler) http.Handler {
 	return func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 			defer context.Clear(request)
@@ -98,6 +93,4 @@ func ClearGorillaContext(context *GorillaContext) func(http.Handler) http.Handle
 	}
 }
 
-// Copyright 2012 The Gorilla Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// This work is based on the gorilla context: https://github.com/gorilla/context
