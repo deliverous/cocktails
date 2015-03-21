@@ -59,8 +59,7 @@ func Test_WithRecovery_ShouldRespondsInternalServerError(t *testing.T) {
 
 func Test_WithRecovery_ShouldPrintTheStackToTheLogger(t *testing.T) {
 	buffer := bytes.NewBufferString("")
-	recovery := testRecoveryLoggingInto(buffer)
-	recovery.PrintStack = false
+	recovery := testRecoveryLoggingInto(buffer).SetPrintStackInBody(false)
 	processRequest(t, Chain(recovery.Recover).Then(panicHandler))
 	if !strings.Contains(buffer.String(), "here is a panic!") {
 		t.Error("Stack was not printed into the logger")
@@ -68,8 +67,7 @@ func Test_WithRecovery_ShouldPrintTheStackToTheLogger(t *testing.T) {
 }
 
 func Test_WithRecovery_WithPrintStack_ShouldPrintTheStackToTheResponseBody(t *testing.T) {
-	recovery := testRecovery()
-	recovery.PrintStack = true
+	recovery := testRecovery().SetPrintStackInBody(true)
 	recorder := processRequest(t, Chain(recovery.Recover).Then(panicHandler))
 	if !strings.Contains(recorder.Body.String(), "here is a panic!") {
 		t.Error("Stack was not printed into the response")
