@@ -67,6 +67,18 @@ func Test_ContentType_AcceptingEmptyCharset_ShouldAcceptAllCharsets(t *testing.T
 	acceptContentType(t, handler, "application/json; charset=any")
 }
 
+func Test_ContentType_SettingCustomErrorHandler_ShouldCallTheHandler(t *testing.T) {
+	called := false
+	errorHandler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		called = true
+		writer.WriteHeader(http.StatusUnsupportedMediaType)
+	})
+
+	handler := Chain(NewContentTypeChecker().SetAcceptedContents("application/json").SetErrorHandler(errorHandler).Check).Then(nil)
+	rejectContentType(t, handler, "text/html")
+	expect(t, called, true)
+}
+
 func acceptContentType(t *testing.T, handler http.Handler, contentType string) {
 	if processRequestWithContent(t, handler, contentType).Code != http.StatusOK {
 		t.Errorf("ContentType failure: sould have accepted %s", contentType)
