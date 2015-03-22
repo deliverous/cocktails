@@ -73,6 +73,11 @@ func (m *ContentTypeChecker) acceptCharset(value string) bool {
 
 func (m *ContentTypeChecker) Check(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if !(request.Method == "PUT" || request.Method == "POST" || request.Method == "PATCH") {
+			next.ServeHTTP(writer, request)
+			return
+		}
+
 		mediatype, params, _ := mime.ParseMediaType(request.Header.Get("Content-Type"))
 		charset, ok := params["charset"]
 		if !ok {
