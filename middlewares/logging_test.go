@@ -14,15 +14,15 @@ var (
 )
 
 func Test_Logging_ConstantValue(t *testing.T) {
-	loggedRequest(t, Constant("const"), newRequest(t, "192.168.1.1", "GET", "http://server/"), "const\n")
+	loggedRequest(t, StringConstant("const"), newRequest(t, "192.168.1.1", "GET", "http://server/"), "const\n")
 }
 
 func Test_Logging_Compose(t *testing.T) {
-	loggedRequest(t, Compose(Constant("A"), Constant("B"), Constant("C")), newRequest(t, "192.168.1.1", "GET", "http://server/"), "ABC\n")
+	loggedRequest(t, Compose(StringConstant("A"), StringConstant("B"), StringConstant("C")), newRequest(t, "192.168.1.1", "GET", "http://server/"), "ABC\n")
 }
 
 func Test_Logging_Enclose(t *testing.T) {
-	loggedRequest(t, Enclose("(", ")", Constant("A")), newRequest(t, "192.168.1.1", "GET", "http://server/"), "(A)\n")
+	loggedRequest(t, Enclose("(", ")", StringConstant("A")), newRequest(t, "192.168.1.1", "GET", "http://server/"), "(A)\n")
 }
 
 func Test_Logging_RemoteAddr(t *testing.T) {

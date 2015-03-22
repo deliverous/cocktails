@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"bufio"
-	"fmt"
+	"bytes"
 	"io"
 	"net"
 	"net/http"
@@ -65,7 +65,7 @@ func (l *loggingHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return conn, rw, err
 }
 
-type LogFunction func([]byte, *Record) []byte
+type LogFunction func(*bytes.Buffer, *Record)
 
 type Logger struct {
 	Timer       func() time.Time
@@ -100,6 +100,59 @@ type Record struct {
 	Writer    LoggingResponseWriter
 }
 
+func (record *Record) RemoteAddr() string {
+	host, _, err := net.SplitHostPort(record.Request.RemoteAddr)
+	if err != nil {
+		host = record.Request.RemoteAddr
+	}
+	return host
+}
+
+func (record *Record) RemoteUser() string {
+	username := "-"
+	if record.URL.User != nil {
+		if name := record.URL.User.Username(); name != "" {
+			username = name
+		}
+	}
+	return username
+}
+
+func (record *Record) RequestTime(format string) string {
+	return record.StartTime.Format(format)
+}
+
+func (record *Record) RespondTime() string {
+	if record.Duration == 0 {
+		record.Duration = record.StopTime.Sub(record.StartTime)
+	}
+	return strconv.FormatInt(record.Duration.Nanoseconds()/time.Microsecond.Nanoseconds(), 10)
+}
+
+func (record *Record) RequestReferer() string {
+	referer := record.Request.Referer()
+	if referer == "" {
+		referer = "-"
+	}
+	return referer
+}
+
+func (record *Record) RequestUserAgent() string {
+	agent := record.Request.UserAgent()
+	if agent == "" {
+		agent = "-"
+	}
+	return agent
+}
+
+func (record *Record) Status() string {
+	return strconv.Itoa(record.Writer.Status())
+}
+
+func (record *Record) BytesWritten() string {
+	return strconv.Itoa(record.Writer.Size())
+}
+
 func (logger *Logger) Log(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := logger.Timer()
@@ -124,54 +177,49 @@ func (logger *Logger) Log(next http.Handler) http.Handler {
 }
 
 func writeLog(writer io.Writer, function LogFunction, record *Record) {
-	buffer := make([]byte, 0, 1024)
-	buffer = function(buffer, record)
-	buffer = append(buffer, '\n')
-	writer.Write(buffer)
+	buffer := bytes.NewBuffer(make([]byte, 0, 1024))
+	function(buffer, record)
+	buffer.WriteByte('\n')
+	writer.Write(buffer.Bytes())
 }
 
 func Compose(functions ...LogFunction) LogFunction {
-	return func(buffer []byte, record *Record) []byte {
+	return func(buffer *bytes.Buffer, record *Record) {
 		for _, function := range functions {
-			buffer = function(buffer, record)
+			function(buffer, record)
 		}
-		return buffer
 	}
 }
 
 func Enclose(begin string, end string, function LogFunction) LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		buffer = append(buffer, begin...)
-		buffer = function(buffer, record)
-		return append(buffer, end...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(begin)
+		function(buffer, record)
+		buffer.WriteString(end)
 	}
 }
 
-func Constant(value string) LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, value...)
+func StringConstant(value string) LogFunction {
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(value)
+	}
+}
+
+func ByteConstant(value byte) LogFunction {
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteByte(value)
 	}
 }
 
 func RemoteAddr() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		host, _, err := net.SplitHostPort(record.Request.RemoteAddr)
-		if err != nil {
-			host = record.Request.RemoteAddr
-		}
-		return append(buffer, host...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RemoteAddr())
 	}
 }
 
 func RemoteUser() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		username := "-"
-		if record.URL.User != nil {
-			if name := record.URL.User.Username(); name != "" {
-				username = name
-			}
-		}
-		return append(buffer, username...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RemoteUser())
 	}
 }
 
@@ -179,84 +227,78 @@ func RequestTime(format string) LogFunction {
 	if format == "" {
 		format = "02/Jan/2006:15:04:05 -0700"
 	}
-	return func(buffer []byte, record *Record) []byte {
-		record.StartTime.Format(format)
-		return append(buffer, record.StartTime.Format(format)...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RequestTime(format))
 	}
 }
 
 func RespondTime() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		if record.Duration == 0 {
-			record.Duration = record.StopTime.Sub(record.StartTime)
-		}
-		return append(buffer, fmt.Sprintf("%d", record.Duration/time.Microsecond)...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RespondTime())
 	}
 }
 
 func RequestReferer() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		referer := record.Request.Referer()
-		if referer == "" {
-			referer = "-"
-		}
-		return append(buffer, referer...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RequestReferer())
 	}
 }
 
 func RequestUserAgent() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		agent := record.Request.UserAgent()
-		if agent == "" {
-			agent = "-"
-		}
-		return append(buffer, agent...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.RequestUserAgent())
 	}
 }
 
 func RequestMethod() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, record.Request.Method...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.Request.Method)
 	}
 }
 
 func RequestURI() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, record.URL.RequestURI()...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.URL.RequestURI())
 	}
 }
 
 func RequestProto() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, record.Request.Proto...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.Request.Proto)
 	}
 }
 
 func RequestInfo() LogFunction {
-	return Compose(RequestMethod(), Constant(" "), RequestURI(), Constant(" "), RequestProto())
+	return Compose(
+		RequestMethod(),
+		ByteConstant(' '),
+		RequestURI(),
+		ByteConstant(' '),
+		RequestProto(),
+	)
 }
 
 func ResponseStatus() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, strconv.Itoa(record.Writer.Status())...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.Status())
 	}
 }
 
 func BytesWritten() LogFunction {
-	return func(buffer []byte, record *Record) []byte {
-		return append(buffer, strconv.Itoa(record.Writer.Size())...)
+	return func(buffer *bytes.Buffer, record *Record) {
+		buffer.WriteString(record.BytesWritten())
 	}
 }
 
 func ApacheCommonLog() LogFunction {
 	return Compose(
 		RemoteAddr(),
-		Constant(" - "),
+		StringConstant(" - "),
 		RemoteUser(),
 		Enclose(" [", "] ", RequestTime("")),
 		Enclose("\"", "\" ", RequestInfo()),
 		ResponseStatus(),
-		Constant(" "),
+		StringConstant(" "),
 		BytesWritten(),
 	)
 }
