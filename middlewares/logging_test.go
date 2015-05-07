@@ -131,12 +131,13 @@ func newRequest(t testing.TB, remote string, method string, url string) *http.Re
 func loggedRequest(t *testing.T, logFunction LogFunction, request *http.Request, expectedLog string) {
 	buffer := new(bytes.Buffer)
 	logger := NewLogger(logFunction).SetWriter(buffer).SetTimer(fakeTimer(Start, Stop))
-
-	recorder := httptest.NewRecorder()
-	Chain(logger.Log).Then(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	handler := logger.Log(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusCreated)
 		writer.Write([]byte("body"))
-	})).ServeHTTP(recorder, request)
+	}))
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
 	if expectedLog != buffer.String() {
 		t.Errorf("Bad log: expected %#v, got %#v", expectedLog, buffer.String())
 	}
